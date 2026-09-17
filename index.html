@@ -445,8 +445,12 @@ function wrap(label){
 nodes.forEach(n => {
   n.lines = wrap(n.label);
   const longest = Math.max(...n.lines.map(l => l.length));
-  n.w = Math.max(74, longest*7.1 + 22);
-  n.h = n.lines.length*14 + 16 + (coreIds.has(n.id) ? 15 : 0);
+  // core nodes get extra size for readability
+  const isCore = coreIds.has(n.id);
+  const charW = isCore ? 8.2 : 7.1;
+  const minW  = isCore ? 110 : 74;
+  n.w = Math.max(minW, longest*charW + 28);
+  n.h = n.lines.length*(isCore?16:14) + (isCore?22:16) + (isCore?16:0);
   n.r = Math.hypot(n.w, n.h)/2;
   n.big = ['exposure','frag','biodiv','mouse','infnymph','poorres','dilution'].includes(n.id);
 });
@@ -533,28 +537,41 @@ const nodeSel = root.append("g").selectAll("g").data(nodes).join("g")
   .call(d3.drag().on("start",dstart).on("drag",dragged).on("end",dend))
   .on("click",(e,d)=>{ e.stopPropagation(); selectNode(d); });
 
+// Richer palette for core nodes
+const coreFill   = {biodiv:"#c8e6b0",poorres:"#b8ddf0",mouse:"#f9c8a8",infnymph:"#f5b8ce",exposure:"#b8cff5"};
+const coreStroke = {biodiv:"#2e6b12",poorres:"#0d4f7a",mouse:"#8a3008",infnymph:"#8a1840",exposure:"#1040a0"};
+const coreText   = {biodiv:"#1a3d08",poorres:"#07304a",mouse:"#5a1c04",infnymph:"#5a0e28",exposure:"#082060"};
+
 nodeSel.append("rect")
   .attr("width",d=>d.w).attr("height",d=>d.h)
   .attr("x",d=>-d.w/2).attr("y",d=>-d.h/2)
-  .attr("rx",9).attr("fill",d=>cats[d.cat].fill)
-  .attr("stroke",d=>cats[d.cat].stroke)
-  .attr("stroke-width",d=>d.big?2.6:1.5);
+  .attr("rx",11)
+  .attr("fill",  d=> coreIds.has(d.id) ? coreFill[d.id]   : cats[d.cat].fill)
+  .attr("stroke",d=> coreIds.has(d.id) ? coreStroke[d.id] : cats[d.cat].stroke)
+  .attr("stroke-width",d=> coreIds.has(d.id) ? 2.8 : d.big ? 2.6 : 1.5)
+  .attr("filter","drop-shadow(0 2px 6px rgba(0,0,0,.18))");
 
-nodeSel.append("text").attr("text-anchor","middle").attr("fill",d=>cats[d.cat].text)
-  .attr("font-size",d=>d.big?12.5:11)
-  .attr("font-weight",d=>d.cat==="mechanism"?800:600)
+nodeSel.append("text").attr("text-anchor","middle")
+  .attr("fill",d=> coreIds.has(d.id) ? coreText[d.id] : cats[d.cat].text)
+  .attr("font-size",d=> coreIds.has(d.id) ? 14 : d.big ? 12.5 : 11)
+  .attr("font-weight", 700)
+  .style("paint-order","stroke")
+  .style("stroke", d=> coreIds.has(d.id) ? coreFill[d.id] : cats[d.cat].fill)
+  .style("stroke-width", d=> coreIds.has(d.id) ? "3px" : "2px")
+  .style("stroke-linejoin","round")
   .each(function(d){
     const t=d3.select(this); const n=d.lines.length;
+    const lineH = coreIds.has(d.id) ? 16 : 14;
     d.lines.forEach((ln,i)=>{
-      t.append("tspan").attr("x",0).attr("y",(i-(n-1)/2)*14+4).text(ln);
+      t.append("tspan").attr("x",0).attr("y",(i-(n-1)/2)*lineH+4).text(ln);
     });
   });
 
 nodeSel.filter(d=>coreIds.has(d.id)).append("text")
   .attr("class","subtxt").attr("text-anchor","middle").attr("x",0)
-  .attr("y",d=>(d.lines.length-1)/2*14+21)
-  .attr("font-size",9.5).attr("font-weight",600)
-  .attr("fill",d=>cats[d.cat].text).attr("opacity",.75).text("");
+  .attr("y",d=>(d.lines.length-1)/2*16 + 24)
+  .attr("font-size",10.5).attr("font-weight",600)
+  .attr("fill",d=>coreText[d.id]).attr("opacity",.8).text("");
 
 // =====================================================================
 //  SIMULATION  (extended layout)
