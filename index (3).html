@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Dilution Effect, Interactive Systems Map of Lyme Disease Risk</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f5f1;--panel:#ffffff;--ink:#242320;--muted:#6b6a63;--line:#e2e0d8;
+    --inc:#1d8a5a;--dec:#c0392b;--accent:#2b2b28;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:"Helvetica Neue",Arial,sans-serif;overflow:hidden}
+  #app{position:relative;width:100vw;height:100vh}
+  svg#map{width:100%;height:100%;display:block;cursor:grab;background:var(--bg)}
+  svg#map:active{cursor:grabbing}
+  .header{position:absolute;top:14px;left:14px;max-width:360px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+    box-shadow:0 4px 18px rgba(0,0,0,.06);z-index:5}
+  .header h1{font-size:16px;margin:0 0 4px;letter-spacing:.2px}
+  .header p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 10px}
+  .mode-row{display:flex;gap:6px;margin-bottom:8px}
+  .mode-row button{flex:1;font-size:11.5px;padding:7px 6px;border-radius:9px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);cursor:pointer;transition:.15s;font-weight:600}
+  .mode-row button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .mode-row button:hover:not(.on){border-color:#bdbbb1}
+  .scn-row{display:flex;gap:6px;margin-bottom:8px}
+  .scn-row button{flex:1;font-size:11px;padding:6px 6px;border-radius:8px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);cursor:pointer;transition:.15s;font-weight:600}
+  .scn-row button.on{background:#3d5a3e;color:#fff;border-color:#3d5a3e}
+  .scn-row button:hover:not(.on){border-color:#bdbbb1}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  input#q{flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;outline:none}
+  .mini{font-size:11px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;
+    background:#fff;cursor:pointer;color:var(--ink)}
+  .mini:hover{border-color:#bdbbb1}
+  .stat{font-size:11px;color:var(--muted)}
+  .legend{position:absolute;left:14px;bottom:14px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.05);z-index:5;max-width:260px}
+  .legend h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 7px}
+  .lg{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:2px 0;cursor:pointer;user-select:none}
+  .lg.off{opacity:.32}
+  .sw{width:13px;height:13px;border-radius:4px;border:1.5px solid #999;flex:none}
+  .edgekey{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);
+    font-size:11px;color:var(--muted);line-height:1.7}
+  .ek{display:inline-flex;align-items:center;gap:5px;margin-right:12px}
+  .eline{width:22px;height:0;border-top:2px solid var(--inc)}
+  .eline.d{border-top:2px dashed var(--dec)}
+  #info{position:absolute;top:14px;right:14px;width:300px;max-height:calc(100vh - 28px);overflow:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:0;
+    box-shadow:0 6px 22px rgba(0,0,0,.10);z-index:6;display:none}
+  #info .cap{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  #info .tag{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;
+    padding:3px 8px;border-radius:20px;margin-bottom:8px;font-weight:700}
+  #info h3{margin:0 0 6px;font-size:14px;line-height:1.4}
+  #info .desc{font-size:12px;line-height:1.55;color:#45443e;margin:0}
+  #info .sec{padding:10px 16px}
+  #info .sec h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--muted);margin:0 0 7px}
+  #info .lnk{font-size:12px;line-height:1.5;padding:4px 0;border-bottom:1px dashed #eee;cursor:pointer}
+  #info .lnk:hover{color:#000}
+  #info .lnk b{font-weight:700}
+  #info .pill{font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px}
+  #info .close{position:absolute;top:12px;right:12px;border:none;background:#f0efe9;
+    border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:14px;color:#555}
+  .hint{position:absolute;bottom:14px;right:14px;font-size:11px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 11px;z-index:4}
+  text{pointer-events:none}
+  .nodeg{cursor:pointer}
+  .elabel{font-size:8.5px;fill:#444;pointer-events:none;font-weight:600}
+  .elabel-req{font-size:9px;fill:#222;pointer-events:none;font-weight:700;
+    paint-order:stroke;stroke:#f6f5f1;stroke-width:3px;stroke-linejoin:round}
+
+  #overlay{position:fixed;inset:0;background:rgba(36,35,32,.72);z-index:20;
+    display:flex;align-items:center;justify-content:center}
+  #overlay-box{background:var(--panel);border-radius:18px;padding:28px 32px;
+    max-width:480px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.22)}
+  #overlay-box h2{font-size:18px;margin:0 0 4px;letter-spacing:.1px}
+  #overlay-box .byline{font-size:11px;color:var(--muted);margin:0 0 18px}
+  #overlay-box ul{margin:0 0 18px;padding:0 0 0 18px;font-size:12.5px;line-height:1.9;color:#3a3936}
+  #overlay-box ul li{margin-bottom:2px}
+  #overlay-box ul li b{color:var(--ink)}
+  #overlay-box button{width:100%;padding:11px;border:none;border-radius:10px;
+    background:var(--accent);color:#fff;font-size:13px;font-weight:700;
+    cursor:pointer;letter-spacing:.2px}
+  #overlay-box button:hover{background:#444}
+  .credits{font-size:10px;color:var(--muted);margin:6px 0 0;text-align:center}
+</style>
+</head>
+<body>
+<!-- ── Instructions overlay ── -->
+<div id="overlay">
+  <div id="overlay-box">
+    <h2>The Dilution Effect</h2>
+    <p class="byline">Interactive Concept Map &nbsp;·&nbsp; Lila, Nash, Evan, Anav</p>
+    <ul>
+      <li><b>Required / Extended</b> — switch between the 5 graded concepts and the full systems map.</li>
+      <li><b>Without / With fragmentation</b> — toggle between the two scenarios. Every arrow changes meaning.</li>
+      <li><b>Hover an arrow</b> — see its label. All other arrows fade back so you can focus.</li>
+      <li><b>Click an arrow</b> — read the full explanation in the panel on the right.</li>
+      <li><b>Click a node</b> — highlight all connections to that concept and reveal their labels.</li>
+      <li><b>Scroll</b> to zoom, <b>drag the background</b> to pan, <b>drag nodes</b> to rearrange.</li>
+      <li><b>Search</b> a concept by name using the search bar in the top-left panel.</li>
+      <li>In Extended mode, click the <b>legend</b> (bottom-left) to filter by concept type.</li>
+    </ul>
+    <button id="overlay-close">Got it, open the map</button>
+  </div>
+</div>
+
+<div id="app">
+  <svg id="map"></svg>
+  <div class="header">
+    <h1>The Dilution Effect</h1>
+    <p class="credits">Lila &nbsp;·&nbsp; Nash &nbsp;·&nbsp; Evan &nbsp;·&nbsp; Anav</p>
+    <p id="hdr-desc">Interactive systems map built from Figures 1, 2, 3 and Part II. Drag nodes, scroll to zoom, click any concept or arrow to explore.</p>
+    <div class="mode-row">
+      <button id="btn-required" class="on">Required</button>
+      <button id="btn-extended">Extended</button>
+    </div>
+    <div class="scn-row" id="scn-row">
+      <button id="btn-nofrag" class="on">Without fragmentation</button>
+      <button id="btn-frag">With fragmentation</button>
+    </div>
+    <div class="row">
+      <input id="q" placeholder="Search a concept...">
+      <button class="mini" id="reset">Reset</button>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+  <div id="info">
+    <button class="close" id="infoclose">x</button>
+    <div class="cap">
+      <span class="tag" id="i-tag"></span>
+      <h3 id="i-title"></h3>
+      <p class="desc" id="i-desc"></p>
+    </div>
+    <div class="sec" id="i-out"></div>
+    <div class="sec" id="i-in"></div>
+  </div>
+  <div class="legend" id="legend">
+    <h2>Concept type, click to filter</h2>
+    <div id="lg-items"></div>
+    <div class="edgekey">
+      <span class="ek"><span class="eline"></span> increases (+)</span>
+      <span class="ek"><span class="eline d"></span> decreases (-)</span>
+    </div>
+  </div>
+  <div class="hint">Hover arrow = label, click = full explanation, scroll = zoom</div>
+</div>
+<script>
+// =====================================================================
+//  FULL GRAPH DATA  (extended map)
+// =====================================================================
+const G = {"categories":{"landscape":{"name":"Landscape driver","fill":"#EFE9DE","stroke":"#7A6A52","text":"#4A3E2C"},"community":{"name":"Biodiversity","fill":"#E7F1D8","stroke":"#4C7A16","text":"#2C4A0A"},"competent":{"name":"Competent reservoir host","fill":"#FBE7DF","stroke":"#B0471F","text":"#6E2A11"},"poor":{"name":"Poor reservoir host","fill":"#DFF3EC","stroke":"#0F7357","text":"#08463A"},"trait":{"name":"Host / risk variable","fill":"#ECEAFB","stroke":"#5B51C4","text":"#332C7A"},"tick":{"name":"Tick biology","fill":"#FBEFD6","stroke":"#9A6410","text":"#5F3D06"},"pathogen":{"name":"Pathogen / infected tick","fill":"#FBE6EE","stroke":"#B03B62","text":"#6E2340"},"human":{"name":"Human and management","fill":"#E4EFFB","stroke":"#1E63A8","text":"#0C3E6E"},"mechanism":{"name":"Key mechanism","fill":"#FBE5E5","stroke":"#B33333","text":"#701F1F"}},"nodes":[{"id":"frag","label":"Forest fragmentation","cat":"landscape","desc":"Breaking continuous forest into small fragments (Fig 3, the two scenarios in Part II). Drives species loss."},{"id":"biodiv","label":"Biodiversity (species richness)","cat":"community","desc":"Number of host species in the community (Fig 3 x-axis, Biodiversity in Part II). The central protective variable."},{"id":"mouse","label":"White-footed mouse","cat":"competent","desc":"Highest larval feeding success (Fig 1), high larval burden and density, and the highest reservoir competence (Fig 2). Stays abundant in fragments (Fig 3)."},{"id":"chipmunk","label":"Chipmunk","cat":"competent","desc":"Moderately competent reservoir (Fig 2), among the species lost early as forests fragment (Fig 3)."},{"id":"mshrew","label":"Masked shrew","cat":"competent","desc":"Competent reservoir that feeds many larvae per hectare (Fig 2)."},{"id":"stshrew","label":"Short-tailed shrew","cat":"competent","desc":"Feeds the most larvae per hectare of any host (Fig 2)."},{"id":"opossum","label":"Opossum","cat":"poor","desc":"Lowest larval feeding success (Fig 1) and a poor reservoir (Fig 2)."},{"id":"squirrel","label":"Squirrels (grey and flying)","cat":"poor","desc":"Poor reservoirs (Fig 2), among the first species lost as forests fragment (Fig 3)."},{"id":"raccoon","label":"Raccoon","cat":"poor","desc":"Lowest larval infection rate, a poor reservoir (Fig 2)."},{"id":"skunk","label":"Skunk","cat":"poor","desc":"A poor reservoir with low reservoir competence (Fig 2)."},{"id":"deer","label":"Deer","cat":"poor","desc":"Feeds few larvae per hectare and is a poor reservoir (Fig 2)."},{"id":"veery","label":"Veery","cat":"poor","desc":"Poor-reservoir bird (Fig 1, Fig 2), lost early as forests fragment (Fig 3)."},{"id":"catbird","label":"Catbird","cat":"poor","desc":"Poor-reservoir bird (Fig 1, Fig 2)."},{"id":"birds","label":"Birds","cat":"poor","desc":"Poor reservoirs (Fig 2)."},{"id":"competence","label":"Reservoir competence","cat":"trait","desc":"Probability a feeding larva becomes infected with B. burgdorferi (Fig 2 y-axis, component c)."},{"id":"poorres","label":"Poor reservoir for B. burgdorferi","cat":"trait","desc":"A host that rarely passes the pathogen to feeding larvae (Fig 2, required item in Part II)."},{"id":"burden","label":"Larval burden per host","cat":"trait","desc":"Number of ticks an average individual carries (Fig 2, component a)."},{"id":"density","label":"Host population density","cat":"trait","desc":"Host individuals per unit area (Fig 2, component b)."},{"id":"larvfed","label":"Larvae fed per hectare","cat":"trait","desc":"Larval burden per individual x population density (Fig 2 x-axis)."},{"id":"feedsucc","label":"Larval feeding success","cat":"trait","desc":"Proportion of larvae that get a blood meal and survive on a host (Fig 1)."},{"id":"larvae","label":"Larval ticks","cat":"tick","desc":"Hatch uninfected and acquire infection while feeding on a host (Fig 2)."},{"id":"tickabund","label":"Abundance of larval ticks","cat":"tick","desc":"Total number of larval ticks in the system (Fig 1, Q3)."},{"id":"nip","label":"Nymphal infection prevalence","cat":"tick","desc":"Percent of nymphal ticks that are infected (Fig 3 y-axis, NIP)."},{"id":"din","label":"Density of infected nymphs","cat":"tick","desc":"Density of infected nymphal ticks in the system (Fig 3)."},{"id":"borrelia","label":"Borrelia burgdorferi","cat":"pathogen","desc":"The bacterial agent of Lyme disease (Fig 2)."},{"id":"infection","label":"Larva acquires infection","cat":"pathogen","desc":"An uninfected feeding larva picks up B. burgdorferi from a competent host (Fig 2)."},{"id":"infnymph","label":"Infected nymphal ticks","cat":"pathogen","desc":"Infected larvae that developed into nymphs (required item in Part II, measured in Fig 3)."},{"id":"exposure","label":"Human risk of Lyme disease","cat":"human","desc":"Human exposure to infected nymphal ticks (Fig 2 and Fig 3 titles, required item in Part II)."},{"id":"mgmt","label":"Land management","cat":"human","desc":"Actions a land manager takes to reduce human exposure risk (Fig 2, Q5)."},{"id":"dilution","label":"DILUTION EFFECT","cat":"mechanism","desc":"In diverse communities, more larvae feed on poor reservoirs, so fewer become infected (the case study's central idea)."}],"edges":[{"s":"frag","t":"biodiv","rel":"decreases","sign":"-","path":"amplif","desc":"Fig 3's x-axis runs species richness from 13 down to 1. As continuous forest is broken into smaller patches, area-sensitive species can no longer maintain viable populations, so host species count steadily falls."},{"s":"frag","t":"veery","rel":"removes","sign":"-","path":"amplif","desc":"The Fig 3 legend explicitly names the veery as a species that occurs only in large forest fragments, making it one of the very first losses in the empirical extinction sequence."},{"s":"frag","t":"squirrel","rel":"removes","sign":"-","path":"amplif","desc":"The Fig 3 legend groups grey and flying squirrels with species restricted to large, intact forest fragments. They vanish early in the empirical sequence while richness is still relatively high."},{"s":"frag","t":"chipmunk","rel":"removes","sign":"-","path":"amplif","desc":"The Fig 3 legend lists the chipmunk among species that occur only in large forest fragments, removed early in the same wave as veeries and squirrels."},{"s":"frag","t":"mouse","rel":"favors","sign":"+","path":"amplif","desc":"The Fig 3 legend states white-footed mice reach high densities in small fragments and went extinct later in the model. Eliminating competitors and predators actively favors mice."},{"s":"biodiv","t":"dilution","rel":"drives","sign":"+","path":"dilution","desc":"A species-rich community supplies many alternative hosts for questing larvae. Ticks spread across a mix of good and poor reservoirs rather than concentrating on the most competent ones."},{"s":"biodiv","t":"poorres","rel":"includes","sign":"+","path":"dilution","desc":"A biodiverse host community includes several poor-reservoir species alongside competent ones: opossum, squirrels, raccoon, skunk, deer, veery, and catbird all appear in the low percent-infected region of Fig 2."},{"s":"poorres","t":"dilution","rel":"drives","sign":"+","path":"dilution","desc":"Poor reservoirs pass B. burgdorferi to only a small fraction of feeding ticks. Every larva that feeds on a poor reservoir instead of a competent one is pulled out of the transmission cycle."},{"s":"dilution","t":"infection","rel":"lowers","sign":"-","path":"dilution","desc":"When ticks spread across many poor-reservoir hosts, a smaller share of the larval population contacts a host capable of passing on B. burgdorferi."},{"s":"dilution","t":"nip","rel":"lowers","sign":"-","path":"dilution","desc":"In Fig 3's random-removal scenario, a diluting mix of good and poor reservoirs persists, keeping nymphal infection prevalence around 40 to 50% across most of the richness range."},{"s":"opossum","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 places the opossum at roughly (300, 5): several hundred larvae fed per hectare but only about 5% infected, among the lowest reservoir competence values plotted."},{"s":"squirrel","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 places squirrels at roughly (1100, 15): very high larvae fed per hectare yet only about 15% infected, the classic signature of a poor reservoir despite high tick exposure."},{"s":"raccoon","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 shows the raccoon at roughly (30, 2), the lowest reservoir competence of any of the 13 species in the figure."},{"s":"skunk","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 places the skunk at roughly (20, 10): low larval burden and only about 10% of larvae becoming infected."},{"s":"deer","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 shows deer at roughly (150, 8): few larvae fed per hectare and a low infection rate, a poor amplifier of B. burgdorferi despite hosting adult ticks."},{"s":"veery","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 places the veery in the low-infection cluster, confirming it contributes little to pathogen amplification."},{"s":"catbird","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"Figure 2 places the catbird alongside the veery in the low percent-infected region. Despite a moderate tick load in Fig 1, it rarely transmits infection."},{"s":"birds","t":"poorres","rel":"is a","sign":"+","path":"dilution","desc":"The bird hosts in Fig 2 (veery, catbird) both cluster in the low reservoir-competence region, well under 20% infected."},{"s":"mouse","t":"competence","rel":"highest","sign":"+","path":"amplif","desc":"The white-footed mouse sits at roughly (800, 93) in Fig 2, the highest point on the y-axis. Close to 93% of larvae that feed on a mouse pick up B. burgdorferi."},{"s":"chipmunk","t":"competence","rel":"raises","sign":"+","path":"amplif","desc":"The chipmunk sits at roughly (450, 62) in Fig 2, the second or third highest reservoir competence among the 13 species."},{"s":"mshrew","t":"competence","rel":"raises","sign":"+","path":"amplif","desc":"The masked shrew sits at roughly (1100, 65) in Fig 2, combining a very high larval burden with a high infection rate."},{"s":"stshrew","t":"competence","rel":"raises","sign":"+","path":"amplif","desc":"The short-tailed shrew sits at roughly (1250, 45) in Fig 2, the single highest larval burden of any species, with about 45% infection rate."},{"s":"borrelia","t":"infection","rel":"source of","sign":"+","path":"core","desc":"Borrelia burgdorferi is the specific bacterial agent a feeding larva must pick up from an infected host in order to become an infected tick, as named in the Fig 2 caption."},{"s":"competence","t":"infection","rel":"determines","sign":"+","path":"core","desc":"The Fig 2 caption defines reservoir competence precisely as the probability that an uninfected, feeding larval tick will acquire infection from a given host."},{"s":"larvae","t":"infection","rel":"acquire by feeding","sign":"+","path":"core","desc":"A larval tick hatches uninfected and can only become infected through the act of taking its one blood meal as a larva, as described in the Fig 2 caption."},{"s":"infection","t":"infnymph","rel":"become","sign":"+","path":"core","desc":"An infected larva molts into the nymphal stage while retaining B. burgdorferi, carrying it forward into the life stage responsible for most human Lyme disease transmission."},{"s":"infnymph","t":"nip","rel":"defines","sign":"+","path":"core","desc":"Nymphal infection prevalence (Fig 3 y-axis) is defined as the percentage of nymphal ticks that are infected, a rate-based expression of infected nymph count."},{"s":"infnymph","t":"din","rel":"raises","sign":"+","path":"core","desc":"The absolute density of infected nymphs on the landscape rises directly with infected nymph count, regardless of total tick population size."},{"s":"nip","t":"din","rel":"raises","sign":"+","path":"core","desc":"A rising NIP curve drives up infected-nymph density even if total tick numbers stay constant, as seen in Fig 3's empirical-sequence spike near richness = 1."},{"s":"tickabund","t":"din","rel":"raises","sign":"+","path":"core","desc":"A larger total tick population means more ticks are infected in absolute terms. Abundance and infection rate multiply together to set exposure risk."},{"s":"mouse","t":"feedsucc","rel":"highest","sign":"+","path":"amplif","desc":"In Fig 1's laboratory feeding trial, the white-footed mouse shows the highest feeding success (about 0.5), significantly higher than every other species (ANOVA, p<0.05)."},{"s":"opossum","t":"feedsucc","rel":"lowest","sign":"-","path":"dilution","desc":"Fig 1 shows the opossum with the lowest feeding success (roughly 0.07). Opossums groom ticks off efficiently before they can feed to completion."},{"s":"veery","t":"feedsucc","rel":"moderate","sign":"+","path":"core","desc":"The veery falls in the mid-range group in Fig 1 (about 0.25 to 0.3), statistically tied with catbird, chipmunk, and squirrel."},{"s":"catbird","t":"feedsucc","rel":"moderate","sign":"+","path":"core","desc":"The catbird falls in the mid-range group in Fig 1 (about 0.25 to 0.3), not significantly different from veery, chipmunk, or squirrel."},{"s":"chipmunk","t":"feedsucc","rel":"moderate","sign":"+","path":"core","desc":"The chipmunk falls in the mid-range group in Fig 1 (about 0.25 to 0.3). Its high reservoir competence (Fig 2) is not matched by feeding success."},{"s":"squirrel","t":"feedsucc","rel":"moderate","sign":"+","path":"core","desc":"The squirrel falls in the mid-range group in Fig 1 (about 0.2 to 0.25), despite feeding the most larvae per hectare overall in Fig 2."},{"s":"feedsucc","t":"tickabund","rel":"increases","sign":"+","path":"core","desc":"The higher the proportion of larvae that feed successfully, the more individuals progress through the tick life cycle, raising overall tick abundance."},{"s":"mouse","t":"burden","rel":"high","sign":"+","path":"amplif","desc":"The mouse's position at roughly x=800 on Fig 2's larvae-fed-per-hectare axis, combined with its high feeding success in Fig 1, means each mouse feeds and supports many ticks."},{"s":"mouse","t":"density","rel":"high","sign":"+","path":"amplif","desc":"The Fig 3 legend notes mice reach high densities in small fragments. This population-density component compounds with the mouse's high per-individual burden."},{"s":"stshrew","t":"burden","rel":"very high","sign":"+","path":"core","desc":"The short-tailed shrew sits furthest right on the Fig 2 x-axis at roughly 1250 larvae fed per hectare, the single highest value in the figure."},{"s":"mshrew","t":"burden","rel":"high","sign":"+","path":"core","desc":"The masked shrew sits at roughly x=1100 on the Fig 2 x-axis, feeding nearly as many larvae per hectare as the short-tailed shrew."},{"s":"burden","t":"larvfed","rel":"multiplies","sign":"+","path":"core","desc":"The Fig 2 caption defines larvae fed per hectare explicitly as average larval burden per individual multiplied by population density."},{"s":"density","t":"larvfed","rel":"multiplies","sign":"+","path":"core","desc":"Population density is the second factor multiplied against per-individual larval burden to compute larvae fed per hectare in Fig 2."},{"s":"larvfed","t":"tickabund","rel":"increases","sign":"+","path":"core","desc":"Species far right on Fig 2's x-axis (mouse, shrews, squirrels) contribute disproportionately to total larval tick abundance."},{"s":"din","t":"exposure","rel":"increases","sign":"+","path":"core","desc":"Both Fig 2 and Fig 3 define human exposure risk as a function of how many infected nymphal ticks are present in the environment."},{"s":"mgmt","t":"mouse","rel":"controls","sign":"-","path":"dilution","desc":"Because the mouse combines the highest reservoir competence, a high larval burden, high density, and dominance in fragmented habitat, suppressing mouse abundance is the most targeted lever available."},{"s":"mgmt","t":"biodiv","rel":"maintains","sign":"+","path":"dilution","desc":"Maintaining large, connected forest tracts sustains host diversity and through it the dilution effect, an indirect but broad-acting lever."},{"s":"mgmt","t":"exposure","rel":"reduces","sign":"-","path":"dilution","desc":"Fig 2's Q5 frames the land manager's goal as reducing human exposure to Lyme disease. Suppressing mice or preserving biodiversity are the two means to that end."}
+]};
+
+// =====================================================================
+//  REQUIRED-MAP MULTI-EDGES
+//  Each pair gets 3 distinct connections with unique labels and
+//  a curvature offset so parallel arrows don't overlap.
+//  nofrag_rel / frag_rel: label shown per scenario
+//  nofrag_sign / frag_sign: arrow color per scenario
+//  nofrag_desc / frag_desc: panel text per scenario
+//  curve: quadratic bezier bend (-1=left, 0=straight, +1=right relative to s->t)
+// =====================================================================
+// ALL 10 PAIRS FULLY CONNECTED — 3 arrows each = 30 total
+// Nodes: biodiv, poorres, mouse, infnymph, exposure
+// =====================================================================
+const REQ_EDGES = [
+
+  // ══════════════════════════════════════════════════════════════════
+  // 1. BIODIV → POORRES
+  // ══════════════════════════════════════════════════════════════════
+  {s:"biodiv",t:"poorres",curve:-0.38,
+   nofrag_rel:"maintains poor-reservoir species pool",nofrag_sign:"+",
+   nofrag_desc:"At ~13 host species (Fig 3 x-axis high end), the community includes all seven poor-reservoir species from Fig 2: opossum, squirrels, raccoon, skunk, deer, veery, catbird. Their combined presence is what makes dilution structurally possible.",
+   frag_rel:"removes poor-reservoir spp. first",frag_sign:"-",
+   frag_desc:"Fragmentation removes area-sensitive species first. Fig 3's legend specifically names veery, squirrels, and chipmunks as restricted to large intact fragments, meaning poor-reservoir richness collapses before the mouse disappears."},
+  {s:"biodiv",t:"poorres",curve:0,
+   nofrag_rel:"spreads larval feeding across hosts",nofrag_sign:"+",
+   nofrag_desc:"With 13 species available, questing larvae distribute feeding events broadly. Each individual poor-reservoir host receives a proportional share, keeping the dilution arithmetic working: more total ticks feed on low-competence hosts than on the mouse alone.",
+   frag_rel:"narrows feeding to competent hosts",frag_sign:"-",
+   frag_desc:"At richness = 1 (Fig 3 empirical sequence), every feeding event is on the mouse. The statistical spreading that creates dilution collapses entirely. Poor-reservoir species cannot dilute a tick population they are no longer part of."},
+  {s:"biodiv",t:"poorres",curve:0.38,
+   nofrag_rel:"sustains tick-grooming species",nofrag_sign:"+",
+   nofrag_desc:"High biodiversity keeps grooming-specialist species like the opossum present (Fig 1: lowest feeding success, ~0.07). Opossums remove the majority of ticks that attempt to feed on them, functioning as tick sinks that reduce total larval abundance alongside diluting infection.",
+   frag_rel:"eliminates tick-grooming species",frag_sign:"-",
+   frag_desc:"The opossum, one of the most effective tick-removal species (Fig 1), is a poor-reservoir animal that depends on intact habitat. Fragmentation removes both its dilution contribution and its tick-sink function, compounding the loss of protective species with a rise in total tick abundance."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 2. BIODIV → MOUSE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"biodiv",t:"mouse",curve:-0.38,
+   nofrag_rel:"limits mouse via interspecific competition",nofrag_sign:"-",
+   nofrag_desc:"In an intact 13-species community, mice compete with chipmunks, squirrels, and shrews for seeds and cover. This interspecific competition constrains mouse population density — component b of the Fig 2 larvae-fed-per-hectare formula — reducing the total tick burden the mouse population can accumulate.",
+   frag_rel:"releases mouse from competitors",frag_sign:"+",
+   frag_desc:"As biodiversity collapses, mouse competitors (squirrels, chipmunks: Fig 3 legend, lost early) disappear first. Competitive release allows mice to reach the high densities the Fig 3 legend describes in small fragments, directly expanding their larvae-fed-per-hectare footprint."},
+  {s:"biodiv",t:"mouse",curve:0,
+   nofrag_rel:"dilutes mouse's share of tick feeding",nofrag_sign:"-",
+   nofrag_desc:"With 12 other host species present, larvae are probabilistically distributed across all hosts. The mouse's share of total feeding events is proportionally constrained, limiting its contribution to infected nymph production even though its per-larva competence (~93%, Fig 2) stays constant.",
+   frag_rel:"concentrates all feeding on mouse",frag_sign:"+",
+   frag_desc:"At richness = 1 in Fig 3's empirical sequence, 100% of larval feeding events pass through a host with ~93% reservoir competence. The dilution arithmetic inverts completely: instead of being one host among many, the mouse is the only host."},
+  {s:"biodiv",t:"mouse",curve:0.38,
+   nofrag_rel:"sustains predator pressure on mouse",nofrag_sign:"-",
+   nofrag_desc:"Intact forest supports a richer predator guild including raptors, foxes, and weasels that regulate mouse density from above. This top-down control is a component of biodiversity that operates independently of the competitive and dilution mechanisms.",
+   frag_rel:"removes top-down mouse regulation",frag_sign:"+",
+   frag_desc:"Forest fragmentation reduces habitat area and connectivity for predators that require larger ranges than mice. With fewer raptors and mammalian predators persisting in small fragments, top-down suppression of mouse density weakens, amplifying the bottom-up competitive-release effect."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 3. BIODIV → INFNYMPH
+  // ══════════════════════════════════════════════════════════════════
+  {s:"biodiv",t:"infnymph",curve:-0.38,
+   nofrag_rel:"suppresses infected nymph production",nofrag_sign:"-",
+   nofrag_desc:"High species richness keeps NIP in the 40-50% range seen in Fig 3's random-removal scenario. Infected nymph production is suppressed because many feeding events occur on poor reservoirs (0-15% competence, Fig 2), pulling the community-wide infection rate well below the mouse's 93%.",
+   frag_rel:"drives infected nymph production upward",frag_sign:"+",
+   frag_desc:"As Fig 3's empirical sequence shows, NIP rises sharply as species richness falls from ~5 toward 1. Each lost species is a lost dilution opportunity, and the cumulative loss of poor reservoirs lets infected nymph production climb toward the maximum determined by the mouse's competence alone."},
+  {s:"biodiv",t:"infnymph",curve:0,
+   nofrag_rel:"maintains dilution effect on NIP",nofrag_sign:"-",
+   nofrag_desc:"Biodiversity is the structural basis of the dilution effect. With high richness, the community-average reservoir competence is well below the mouse's 93% because many species sit in the 0-20% competence range (Fig 2). The infected nymph count reflects this lower average.",
+   frag_rel:"dismantles dilution effect",frag_sign:"+",
+   frag_desc:"Fragmentation does not merely reduce species richness — it selectively removes the species (poor reservoirs) that create dilution. The resulting community has a much higher average reservoir competence, and infected nymph production rises in proportion to the loss of that dilution capacity."},
+  {s:"biodiv",t:"infnymph",curve:0.38,
+   nofrag_rel:"keeps tick abundance lower overall",nofrag_sign:"-",
+   nofrag_desc:"High biodiversity includes tick-grooming species (opossum) and hosts with low feeding success (Fig 1), reducing the fraction of larvae that successfully feed and survive. Fewer successful larvae means fewer nymphs in total, so even the infected fraction produces fewer infected nymphs in absolute numbers.",
+   frag_rel:"raises total tick abundance",frag_sign:"+",
+   frag_desc:"With grooming-specialist species removed and feeding success dominated by the mouse (highest in Fig 1 at ~0.5), more larvae survive each feeding attempt. A larger total nymph population, combined with high NIP, multiplies infected nymph density beyond what either factor alone would predict."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 4. BIODIV → EXPOSURE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"biodiv",t:"exposure",curve:-0.38,
+   nofrag_rel:"reduces human Lyme disease risk",nofrag_sign:"-",
+   nofrag_desc:"Intact biodiversity, through the dilution effect, keeps both NIP and infected nymph density low (Fig 3, random-removal). A person entering high-diversity forest encounters fewer infected nymphs per unit area, which is the direct driver of Lyme disease exposure risk described in both Fig 2 and Fig 3.",
+   frag_rel:"elevates human Lyme disease risk",frag_sign:"+",
+   frag_desc:"Fragmentation-driven biodiversity loss is the upstream cause of the elevated human risk shown in Fig 3's empirical sequence. The path runs biodiversity loss, poor-reservoir loss, mouse dominance, NIP spike, high infected nymph density, elevated human exposure — and biodiversity is the entry point for that entire causal chain."},
+  {s:"biodiv",t:"exposure",curve:0,
+   nofrag_rel:"keeps disease risk landscape-scale low",nofrag_sign:"-",
+   nofrag_desc:"The protective effect of biodiversity operates at the landscape scale: as long as large, connected forests maintain high host diversity, the dilution effect suppresses Lyme risk across the entire area (Fig 3, mice-always-present scenario shows persistently lower NIP than empirical sequence at equivalent richness).",
+   frag_rel:"creates high-risk fragmented patches",frag_sign:"+",
+   frag_desc:"Fragmented landscapes are not uniformly risky — small forest patches with low biodiversity become Lyme disease hotspots. The patch structure means people encounter high-risk habitat precisely where they are most likely to interface with edge habitats (trails, parks, suburban woodlands), concentrating exposure."},
+  {s:"biodiv",t:"exposure",curve:0.38,
+   nofrag_rel:"intact forest reduces human-wildlife interface",nofrag_sign:"-",
+   nofrag_desc:"Intact, continuous forest interior is less frequently visited by people than forest edges and fragments. High biodiversity is therefore correlated with lower human-wildlife interface, meaning fewer opportunities for nymph-to-human contact even at equivalent nymph densities.",
+   frag_rel:"fragmentation maximizes edge habitat",frag_sign:"+",
+   frag_desc:"Forest fragmentation creates disproportionate edge habitat — the ecotone between forest and suburban or agricultural land. Edge habitat is both where mice thrive (Fig 3 legend) and where people most commonly enter the forest, creating a spatial overlap between maximum infected-nymph density and maximum human presence."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 5. POORRES → MOUSE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"poorres",t:"mouse",curve:-0.38,
+   nofrag_rel:"poor reservoirs absorb tick burden from mouse",nofrag_sign:"-",
+   nofrag_desc:"When abundant poor-reservoir species (opossum, squirrels, raccoon, deer: Fig 2) host large numbers of larvae, fewer larvae are available to feed on the mouse. Because larvae fed per hectare (Fig 2 x-axis) is a community-wide total, ticks feeding on poor reservoirs directly reduce the mouse's tick load.",
+   frag_rel:"tick burden concentrates on mouse",frag_sign:"+",
+   frag_desc:"As poor-reservoir species disappear from the community, the larvae previously distributed across opossum, squirrels, raccoon, and deer are redirected to whichever hosts remain — primarily the mouse. The mouse's larvae-fed-per-hectare value effectively rises as competing hosts disappear."},
+  {s:"poorres",t:"mouse",curve:0,
+   nofrag_rel:"poor reservoirs dilute mouse's dominance",nofrag_sign:"-",
+   nofrag_desc:"The presence of abundant poor-reservoir hosts means that even if mice are individually highly competent (Fig 2, ~93%), their demographic importance is diluted. Tick encounters are spread across many hosts, so the mouse's proportional contribution to community-level transmission is limited.",
+   frag_rel:"loss of poor reservoirs makes mouse dominant",frag_sign:"+",
+   frag_desc:"The loss of poor reservoirs is not merely a subtraction — it is a transfer of tick burden to the mouse. Each species removed from the community pool shifts a portion of larval feeding events toward the mouse, progressively amplifying its role until it is the sole significant host."},
+  {s:"poorres",t:"mouse",curve:0.38,
+   nofrag_rel:"shared habitat limits mouse density",nofrag_sign:"-",
+   nofrag_desc:"Many poor-reservoir species (squirrels, chipmunks, raccoon) share the same forest habitat and food resources as mice. This shared resource base means their presence indirectly caps mouse carrying capacity through resource competition, even though poor reservoirs are not the primary competitors of mice.",
+   frag_rel:"habitat specialization gives mouse the edge",frag_sign:"+",
+   frag_desc:"In small forest fragments, the mouse's generalist habitat requirements give it an advantage over poor-reservoir species that need interior forest (veery, chipmunks) or larger home ranges (raccoon, deer). Mouse density rises not just through competitive release but through a genuine habitat advantage in fragmented landscapes."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 6. POORRES → INFNYMPH
+  // ══════════════════════════════════════════════════════════════════
+  {s:"poorres",t:"infnymph",curve:-0.38,
+   nofrag_rel:"deflects larvae away from infection",nofrag_sign:"-",
+   nofrag_desc:"Each larva feeding on a poor reservoir (Fig 2: 0-15% competence) has a high probability of remaining uninfected. When poor reservoirs absorb a large share of feeding events, the absolute count of infected larvae, and therefore the infected nymphs they become, stays low.",
+   frag_rel:"loses larval deflection capacity",frag_sign:"+",
+   frag_desc:"As poor-reservoir species disappear (Fig 3, empirical sequence), fewer feeding events are deflected to low-competence hosts. Each species lost removes a portion of the deflection capacity, and infected nymph count rises in proportion to each loss."},
+  {s:"poorres",t:"infnymph",curve:0,
+   nofrag_rel:"lowers community-average reservoir competence",nofrag_sign:"-",
+   nofrag_desc:"When poor reservoirs are abundant, the weighted average reservoir competence of the host assemblage is pulled well below the mouse's 93% (Fig 2). A larva selecting a host at random faces a much lower per-feeding probability of acquiring B. burgdorferi than if only competent hosts were present.",
+   frag_rel:"raises community-average competence toward mouse level",frag_sign:"+",
+   frag_desc:"With opossum, squirrels, raccoon, skunk, and deer removed, the host assemblage converges on the mouse as the dominant remaining species. The weighted average competence approaches 93%, meaning nearly every larval feeding event now results in infection."},
+  {s:"poorres",t:"infnymph",curve:0.38,
+   nofrag_rel:"holds NIP in 40-50% range",nofrag_sign:"-",
+   nofrag_desc:"Fig 3's random-removal scenario, which preserves a mix of good and poor reservoirs, shows NIP hovering around 40-50% across most of the richness range. The poor reservoirs are what hold the ceiling below the 80-100% spike seen when only mice remain.",
+   frag_rel:"allows NIP to spike toward 80-100%",frag_sign:"+",
+   frag_desc:"In Fig 3's empirical sequence, NIP spikes as richness falls below 4 or 5 species because those final losses are the remaining poor-reservoir species. Once gone, nothing prevents NIP from approaching the maximum set by mouse competence alone."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 7. POORRES → EXPOSURE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"poorres",t:"exposure",curve:-0.38,
+   nofrag_rel:"dilution keeps exposure risk low",nofrag_sign:"-",
+   nofrag_desc:"The presence of poor-reservoir species is the proximate mechanism of the dilution effect. By absorbing larval feeding events and failing to transmit B. burgdorferi, they suppress infected nymph density across the landscape, which is the direct determinant of human exposure risk per Fig 2 and Fig 3.",
+   frag_rel:"loss of dilution raises exposure risk",frag_sign:"+",
+   frag_desc:"Every poor-reservoir species lost from the community is a step toward higher human exposure. The causal logic runs from poor-reservoir loss to higher NIP (Fig 3) to higher infected nymph density to higher probability that a person entering that habitat is bitten by an infected tick."},
+  {s:"poorres",t:"exposure",curve:0,
+   nofrag_rel:"poor reservoirs reduce tick abundance",nofrag_sign:"-",
+   nofrag_desc:"Species like the opossum (Fig 1, lowest feeding success ~0.07) function as tick sinks: they attract larvae but kill most of them through grooming before the larvae can feed to completion. This reduces total tick abundance, which reduces exposure risk independently of NIP.",
+   frag_rel:"loss of tick sinks raises total tick density",frag_sign:"+",
+   frag_desc:"When poor-reservoir species with low feeding success (opossum, Fig 1) are removed, total tick survival rates increase. More larvae successfully feed and survive to become nymphs. Even if NIP were held constant, a larger total nymph population would increase the absolute density of infected nymphs and therefore exposure risk."},
+  {s:"poorres",t:"exposure",curve:0.38,
+   nofrag_rel:"diverse host community buffers disease hotspots",nofrag_sign:"-",
+   nofrag_desc:"In communities with abundant poor reservoirs, tick burden and infection are spread across many host species, preventing the formation of localized disease hotspots. Human exposure remains diffusely low across the landscape rather than concentrated in areas where one highly competent host dominates.",
+   frag_rel:"loss of diversity creates disease hotspots",frag_sign:"+",
+   frag_desc:"When poor reservoirs are lost and mice dominate, infected nymph density becomes spatially concentrated in patches where mice are most abundant — small forest fragments and suburban edges. People entering these patches face disproportionately high exposure because tick burden and infection are no longer spread across a diverse host community."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 8. MOUSE → INFNYMPH
+  // ══════════════════════════════════════════════════════════════════
+  {s:"mouse",t:"infnymph",curve:-0.38,
+   nofrag_rel:"constant ~93% competence produces baseline infection",nofrag_sign:"+",
+   nofrag_desc:"Even in intact, biodiverse communities, the mouse's ~93% reservoir competence (Fig 2) means every larva that does feed on a mouse almost certainly becomes infected. The dilution effect limits how many larvae reach the mouse, not the conversion rate once they do.",
+   frag_rel:"dominant host role amplifies baseline infection",frag_sign:"+",
+   frag_desc:"In fragmented landscapes, the mouse's ~93% competence now applies to the majority of all feeding events, not just the small fraction it captures in a diverse community. The rate is unchanged but the frequency is massively increased, producing the spike in NIP and infected nymph density seen in Fig 3's empirical sequence."},
+  {s:"mouse",t:"infnymph",curve:0,
+   nofrag_rel:"high individual larval burden contributes steadily",nofrag_sign:"+",
+   nofrag_desc:"The mouse's position at roughly x=800 on Fig 2's larvae-fed-per-hectare axis reflects both high individual tick burden and sufficient population density. Each mouse in the community contributes a steady stream of infected larvae that become infected nymphs, even when the mouse is one host among many.",
+   frag_rel:"density increase multiplies per-mouse contribution",frag_sign:"+",
+   frag_desc:"Fig 3's legend states mice reach high densities in small fragments. Higher mouse density means more individual mice each producing infected larvae at the same high rate. The per-mouse contribution to infected nymph production is unchanged, but the number of mice making that contribution rises, multiplying total infected nymph output."},
+  {s:"mouse",t:"infnymph",curve:0.38,
+   nofrag_rel:"highest feeding success sustains tick lifecycle",nofrag_sign:"+",
+   nofrag_desc:"The mouse's ~0.5 larval feeding success (Fig 1, highest of all species, group a) means that ticks choosing to feed on a mouse are very likely to successfully complete their blood meal and survive to molt. This high survival rate contributes to total nymph abundance, increasing the pool from which infected nymphs are drawn.",
+   frag_rel:"high survival + dominance = outsized nymph output",frag_sign:"+",
+   frag_desc:"When the mouse is the dominant host in a fragmented landscape, its high feeding success (Fig 1) ensures that most larvae that attempt to feed survive to become nymphs. Combined with ~93% competence, this means nearly every larva in the system goes through one host (the mouse), successfully feeds, and emerges as an infected nymph."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 9. MOUSE → EXPOSURE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"mouse",t:"exposure",curve:-0.38,
+   nofrag_rel:"mouse produces some infected nymphs even in diverse community",nofrag_sign:"+",
+   nofrag_desc:"Even in intact communities, the white-footed mouse (Fig 2, ~93% competence) is the single largest per-individual contributor to infected nymph production. Some baseline level of Lyme disease exposure exists because mice are never fully absent from the landscape, only less dominant.",
+   frag_rel:"mouse-dominated landscape maximizes exposure",frag_sign:"+",
+   frag_desc:"In fragmented habitats the mouse drives infected nymph density to near-maximum levels (Fig 3, empirical sequence at richness=1). Human exposure risk is effectively set by the mouse's biology alone: its ~93% competence, high feeding success (Fig 1), and high density in fragments all compound to saturate the landscape with infected nymphs."},
+  {s:"mouse",t:"exposure",curve:0,
+   nofrag_rel:"high mouse density in suburbs elevates local risk",nofrag_sign:"+",
+   nofrag_desc:"White-footed mice thrive in suburban and edge habitats where people live and recreate. Even in ecologically intact regions, mice at the forest-suburb interface generate a locally elevated Lyme disease exposure risk, which is why this system is relevant to human health beyond purely wild landscapes.",
+   frag_rel:"fragmentation creates mouse-dominated edge everywhere",frag_sign:"+",
+   frag_desc:"Fragmentation maximizes the edge-to-interior ratio of forest patches. Since mice thrive at edges (Fig 3 legend) and people most commonly enter forests at edges, fragmentation creates maximum spatial overlap between the highest mouse density and the highest human presence, elevating exposure across the entire human-forest interface."},
+  {s:"mouse",t:"exposure",curve:0.38,
+   nofrag_rel:"mouse is proximate source of most human infections",nofrag_sign:"+",
+   nofrag_desc:"The white-footed mouse is the primary reservoir that infects larval ticks, which then become the nymphs that bite humans. This causal chain makes the mouse the proximate biological source of human Lyme disease, regardless of ecosystem context. The case study's Fig 2 Q5 asks managers to target the mouse precisely because it is so central to this chain.",
+   frag_rel:"mouse monopoly on transmission maximizes human risk",frag_sign:"+",
+   frag_desc:"In a mouse-dominated fragmented landscape, the entire transmission chain is compressed into one species. The mouse infects the larvae, which become the nymphs, which bite people. There are no alternative pathways, no dilution steps, and no other species to absorb ticks without transmitting infection. The result is the highest possible human exposure for a given tick density."},
+
+  // ══════════════════════════════════════════════════════════════════
+  // 10. INFNYMPH → EXPOSURE
+  // ══════════════════════════════════════════════════════════════════
+  {s:"infnymph",t:"exposure",curve:-0.38,
+   nofrag_rel:"low nymph density = low encounter probability",nofrag_sign:"+",
+   nofrag_desc:"When the dilution effect is operating, infected nymph density stays low (Fig 3, random-removal ~40-50% NIP). A person in intact forest encounters fewer infected nymphs per hour of activity. Per-activity risk is therefore low even though each individual nymph that does attach is still infectious.",
+   frag_rel:"high nymph density = high encounter probability",frag_sign:"+",
+   frag_desc:"As infected nymph density rises in fragmented landscapes (Fig 3, empirical sequence approaching 80-100% NIP at richness=1), a person in that habitat encounters many more infected nymphs per unit time. The probability of acquiring Lyme disease per outdoor activity climbs steeply with nymph density."},
+  {s:"infnymph",t:"exposure",curve:0,
+   nofrag_rel:"nymphal season concentrates risk in summer",nofrag_sign:"+",
+   nofrag_desc:"Nymphs are active in late spring and summer — the same season noted in the Fig 2 caption for peak larval activity (August-September, with nymphs preceding larvae). Their small size makes them hard to detect on skin or clothing, meaning even at low density they pose meaningful bite risk per outdoor activity.",
+   frag_rel:"high summer density in fragmented suburban forests",frag_sign:"+",
+   frag_desc:"Fragmented suburban forests generate high infected nymph densities in exactly the habitat people use most during summer. The seasonal window, the land use pattern, and the ecological outcome of fragmentation all align: people are outdoors, nymphs are active, and fragmented forests have maximized infected nymph density relative to intact ones."},
+  {s:"infnymph",t:"exposure",curve:0.38,
+   nofrag_rel:"each attached nymph converts density to disease risk",nofrag_sign:"+",
+   nofrag_desc:"Infected nymph density becomes human exposure only through the individual act of tick attachment and feeding. Even at low density, each infected nymph represents a real probability of Lyme disease transmission. The relationship between density and risk is approximately linear — every additional infected nymph adds proportionally to landscape-level risk.",
+   frag_rel:"high density overwhelms individual avoidance",frag_sign:"+",
+   frag_desc:"When infected nymph density is very high (fragmented landscape, Fig 3 near richness=1), behavioral precautions (tick checks, repellent, clothing) cannot fully eliminate exposure. The sheer abundance of infectious nymphs means that even careful individuals encounter them, translating elevated density into population-level Lyme disease incidence rather than just elevated individual risk."}
+];
+
+// =====================================================================
+//  SCENARIO DEFINITIONS
+// =====================================================================
+const coreIds = new Set(["biodiv","mouse","poorres","infnymph","exposure"]);
+
+const reqScenarios = {
+  nofrag: {
+    label: "Required, Without Fragmentation",
+    sub: {
+      biodiv:   "High, intact forest",
+      poorres:  "Many species present",
+      mouse:    "Minor contributor",
+      infnymph: "Diluted, stays low",
+      exposure: "Low"
+    },
+    nodeDesc: {
+      biodiv:   "Intact, unfragmented forest supports the full community of roughly 13 host species seen at the high end of Fig 3's x-axis. All functional roles in the host community are filled.",
+      poorres:  "Because biodiversity is high, the poor-reservoir species from Fig 2 (opossum, squirrels, raccoon, skunk, deer, birds) remain abundant. Their combined presence keeps community-average reservoir competence low.",
+      mouse:    "With many other hosts present, the white-footed mouse is one host among many. Its high competence (~93%, Fig 2) still applies, but its share of total feeding events is small when ticks are distributed across 12 other species.",
+      infnymph: "Larvae spread across many poor reservoirs rather than concentrating on the mouse. Nymphal infection prevalence stays in the 40 to 50% range, consistent with Fig 3's random-removal scenario at high species richness.",
+      exposure: "With infected nymphs kept scarce by dilution, and nymph density on the landscape low, the probability of a person encountering an infected tick is correspondingly low."
+    }
+  },
+  frag: {
+    label: "Required, With Fragmentation",
+    sub: {
+      biodiv:   "Low, fragmented forest",
+      poorres:  "Few species remain",
+      mouse:    "Dominant host",
+      infnymph: "Rises sharply",
+      exposure: "High"
+    },
+    nodeDesc: {
+      biodiv:   "Forest fragmentation removes area-sensitive species (Fig 3 legend: veery, squirrels, chipmunks first), driving richness toward the low end of Fig 3's x-axis. The functional structure of the host community unravels.",
+      poorres:  "The poor-reservoir species are the first to disappear as fragmentation proceeds (Fig 3, empirical sequence). Their loss removes the dilution buffer and raises the community-average reservoir competence toward the mouse's value.",
+      mouse:    "The Fig 3 legend notes mice tend to be ubiquitous and reach high densities in small fragments, going extinct last. Freed from competition and with most feeding ticks now concentrated on them, mice become the dominant infection engine.",
+      infnymph: "With poor reservoirs gone and mice receiving most feeding events at ~93% competence (Fig 2), nymphal infection prevalence climbs sharply, matching the empirical-sequence spike in Fig 3 as richness falls toward 1.",
+      exposure: "High infected-nymph density in fragmented landscapes, combined with the difficulty of avoiding nymphs when their density is very high, sharply elevates the probability of human Lyme disease exposure."
+    }
+  }
+};
+
+const extScenarios = {
+  nofrag: {
+    label: "Extended, Without Fragmentation",
+    headerDesc: "Full systems map showing all connections under intact, unfragmented forest conditions. All host species and dilution pathways are present."
+  },
+  frag: {
+    label: "Extended, With Fragmentation",
+    headerDesc: "Full systems map showing all connections under forest fragmentation. Area-sensitive species are lost, amplification pathways dominate, and mouse-driven infection climbs."
+  }
+};
+
+// =====================================================================
+//  EXTENDED GRAPH SETUP
+// =====================================================================
+const INC = "#1d8a5a", DEC = "#c0392b";
+const cats = G.categories;
+const nodes = G.nodes.map(d => Object.assign({}, d));
+const nById = new Map(nodes.map(d => [d.id, d]));
+const extLinks = G.edges.map(d => Object.assign({}, d, {source:d.s, target:d.t}));
+
+// =====================================================================
+//  STATE
+// =====================================================================
+let mode = "required";
+let scenario = "nofrag";
+
+// =====================================================================
+//  LABEL WRAP
+// =====================================================================
+function wrap(label){
+  const words = label.split(/\s+/); const lines = []; let cur = "";
+  const max = 15;
+  for(const w of words){
+    if((cur+" "+w).trim().length <= max) cur = (cur+" "+w).trim();
+    else { lines.push(cur); cur = w; }
+  }
+  if(cur) lines.push(cur);
+  return lines.slice(0,3);
+}
+nodes.forEach(n => {
+  n.lines = wrap(n.label);
+  const longest = Math.max(...n.lines.map(l => l.length));
+  n.w = Math.max(74, longest*7.1 + 22);
+  n.h = n.lines.length*14 + 16 + (coreIds.has(n.id) ? 15 : 0);
+  n.r = Math.hypot(n.w, n.h)/2;
+  n.big = ['exposure','frag','biodiv','mouse','infnymph','poorres','dilution'].includes(n.id);
+});
+
+// =====================================================================
+//  SVG SETUP
+// =====================================================================
+const svg = d3.select("#map");
+let W = window.innerWidth, H = window.innerHeight;
+svg.attr("viewBox",[0,0,W,H]);
+const root = svg.append("g");
+
+// Arrow markers
+const defs = svg.append("defs");
+[["ar-inc",INC],["ar-dec",DEC]].forEach(([id,c])=>{
+  defs.append("marker").attr("id",id).attr("viewBox","0 0 10 10")
+    .attr("refX",10).attr("refY",5).attr("markerWidth",6).attr("markerHeight",6)
+    .attr("orient","auto-start-reverse")
+    .append("path").attr("d","M1 1 L9 5 L1 9").attr("fill","none").attr("stroke",c)
+    .attr("stroke-width",1.8).attr("stroke-linecap","round").attr("stroke-linejoin","round");
+});
+
+// ── Extended link layer ─────────────────────────────────────────────
+const extLinkSel = root.append("g").attr("fill","none")
+  .selectAll("path").data(extLinks).join("path")
+  .attr("stroke",d=>d.sign==="+"?INC:DEC)
+  .attr("stroke-width",1.4)
+  .attr("stroke-dasharray",d=>d.sign==="+"?null:"5 4")
+  .attr("opacity",.5)
+  .attr("marker-end",d=>d.sign==="+"?"url(#ar-inc)":"url(#ar-dec)");
+
+const extLinkHit = root.append("g").attr("fill","none")
+  .selectAll("path").data(extLinks).join("path")
+  .attr("stroke","transparent").attr("stroke-width",14)
+  .style("cursor","pointer")
+  .on("click",(e,d)=>{ e.stopPropagation(); selectExtEdge(d); })
+  .on("mouseenter",function(e,d){ extLinkSel.filter(l=>l===d).attr("opacity",1).attr("stroke-width",2.4); })
+  .on("mouseleave",function(e,d){ if(selExtEdge!==d) extLinkSel.filter(l=>l===d).attr("opacity",extLinkOpacity(d)).attr("stroke-width",extLinkWidth(d)); });
+
+const extElabels = root.append("g").selectAll("text").data(extLinks).join("text")
+  .attr("class","elabel").attr("text-anchor","middle")
+  .text(d=>d.rel+" ("+d.sign+")")
+  .attr("opacity",0);
+
+// ── Required multi-edge layer ──────────────────────────────────────
+// Group for required curved edges (drawn on top of extended)
+const reqGroup = root.append("g").attr("fill","none");
+
+// Build selection — one path per required edge
+const reqPaths = reqGroup.selectAll("path.req-vis")
+  .data(REQ_EDGES).join("path")
+  .attr("class","req-vis")
+  .attr("fill","none")
+  .attr("stroke-width",2.2)
+  .attr("opacity",0.85);
+
+const reqHitPaths = reqGroup.selectAll("path.req-hit")
+  .data(REQ_EDGES).join("path")
+  .attr("class","req-hit")
+  .attr("fill","none").attr("stroke","transparent").attr("stroke-width",16)
+  .style("cursor","pointer")
+  .on("click",(e,d)=>{ e.stopPropagation(); selectReqEdge(d); })
+  .on("mouseenter",function(e,d){
+    hovReqEdge=d;
+    d3.select(this.parentNode).selectAll("path.req-vis").filter(p=>p===d).attr("opacity",1).attr("stroke-width",3.2);
+    applyReqEdgeStyle();
+  })
+  .on("mouseleave",function(e,d){
+    hovReqEdge=null;
+    if(selReqEdge!==d) d3.select(this.parentNode).selectAll("path.req-vis").filter(p=>p===d).attr("opacity",0.72).attr("stroke-width",2.2);
+    applyReqEdgeStyle();
+  });
+
+// Label text for required edges (midpoint of curve)
+const reqLabels = reqGroup.selectAll("text.elabel-req")
+  .data(REQ_EDGES).join("text")
+  .attr("class","elabel-req")
+  .attr("text-anchor","middle")
+  .attr("opacity",0);
+
+// ── Nodes ───────────────────────────────────────────────────────────
+const nodeSel = root.append("g").selectAll("g").data(nodes).join("g")
+  .attr("class","nodeg")
+  .call(d3.drag().on("start",dstart).on("drag",dragged).on("end",dend))
+  .on("click",(e,d)=>{ e.stopPropagation(); selectNode(d); });
+
+nodeSel.append("rect")
+  .attr("width",d=>d.w).attr("height",d=>d.h)
+  .attr("x",d=>-d.w/2).attr("y",d=>-d.h/2)
+  .attr("rx",9).attr("fill",d=>cats[d.cat].fill)
+  .attr("stroke",d=>cats[d.cat].stroke)
+  .attr("stroke-width",d=>d.big?2.6:1.5);
+
+nodeSel.append("text").attr("text-anchor","middle").attr("fill",d=>cats[d.cat].text)
+  .attr("font-size",d=>d.big?12.5:11)
+  .attr("font-weight",d=>d.cat==="mechanism"?800:600)
+  .each(function(d){
+    const t=d3.select(this); const n=d.lines.length;
+    d.lines.forEach((ln,i)=>{
+      t.append("tspan").attr("x",0).attr("y",(i-(n-1)/2)*14+4).text(ln);
+    });
+  });
+
+nodeSel.filter(d=>coreIds.has(d.id)).append("text")
+  .attr("class","subtxt").attr("text-anchor","middle").attr("x",0)
+  .attr("y",d=>(d.lines.length-1)/2*14+21)
+  .attr("font-size",9.5).attr("font-weight",600)
+  .attr("fill",d=>cats[d.cat].text).attr("opacity",.75).text("");
+
+// =====================================================================
+//  SIMULATION  (extended layout)
+// =====================================================================
+const sim = d3.forceSimulation(nodes)
+  .force("link",d3.forceLink(extLinks).id(d=>d.id).distance(d=>d.big?150:104).strength(.22))
+  .force("charge",d3.forceManyBody().strength(-560))
+  .force("collide",d3.forceCollide().radius(d=>d.r+10).strength(.9))
+  .force("x",d3.forceX(W/2).strength(.045))
+  .force("y",d3.forceY(H/2).strength(.05))
+  .on("tick",tick);
+
+// =====================================================================
+//  CURVE HELPER for required multi-edges
+// =====================================================================
+function reqCurvePath(e){
+  const s = nById.get(e.s), t = nById.get(e.t);
+  if(!s||!t) return "";
+  const sx=s.x, sy=s.y, tx2=t.x, ty2=t.y;
+  const dx=tx2-sx, dy=ty2-sy;
+  const L=Math.hypot(dx,dy)||1;
+  // perpendicular offset
+  const px=-dy/L, py=dx/L;
+  const bend = e.curve * L * 0.38;
+  const mx=(sx+tx2)/2 + px*bend;
+  const my=(sy+ty2)/2 + py*bend;
+  // box edge reach from source toward control
+  const reach=boxReach(s,mx-sx,my-sy)+0;
+  const rsx=sx+(mx-sx)/Math.hypot(mx-sx,my-sy||1)*reach;
+  const rsy=sy+(my-sy)/Math.hypot(mx-sx,my-sy||1)*reach;
+  // box edge reach from target toward control
+  const treachVec={x:mx-tx2,y:my-ty2};
+  const tl=Math.hypot(treachVec.x,treachVec.y)||1;
+  const treach=boxReach(t,treachVec.x,treachVec.y)+6;
+  const rtx=tx2+treachVec.x/tl*treach;
+  const rty=ty2+treachVec.y/tl*treach;
+  return `M${rsx},${rsy}Q${mx},${my} ${rtx},${rty}`;
+}
+
+function reqMidpoint(e){
+  const s=nById.get(e.s), t=nById.get(e.t);
+  if(!s||!t) return {x:0,y:0};
+  const dx=t.x-s.x, dy=t.y-s.y, L=Math.hypot(dx,dy)||1;
+  const px=-dy/L, py=dx/L;
+  const bend=e.curve*L*0.38;
+  // point at 60% along curve from s
+  const mx=(s.x+t.x)/2+px*bend;
+  const my=(s.y+t.y)/2+py*bend;
+  return {x:(s.x+t.x)/2*0.5+mx*0.5, y:(s.y+t.y)/2*0.5+my*0.5};
+}
+
+// =====================================================================
+//  TICK
+// =====================================================================
+function isExtNodeVisible(n){ return mode==="extended"; }
+function isExtLinkVisible(l){
+  if(mode!=="extended") return false;
+  if(scenario==="nofrag") return l.path==="dilution"||l.path==="core";
+  if(scenario==="frag")   return l.path==="amplif"||l.path==="core";
+  return true;
+}
+
+function tick(){
+  // Extended links
+  extLinkSel.attr("d",d=>{
+    if(!isExtLinkVisible(d)){d._sx=0;d._sy=0;d._tx=0;d._ty=0;return "";}
+    const s=d.source,t=d.target;
+    const dx=t.x-s.x,dy=t.y-s.y,L=Math.hypot(dx,dy)||1;
+    const pad=6;
+    const sx=s.x+dx/L*boxReach(s,dx,dy), sy=s.y+dy/L*boxReach(s,dx,dy);
+    const tx=t.x-dx/L*(boxReach(t,dx,dy)+pad), ty=t.y-dy/L*(boxReach(t,dx,dy)+pad);
+    d._sx=sx;d._sy=sy;d._tx=tx;d._ty=ty;
+    return `M${sx},${sy}L${tx},${ty}`;
+  });
+  extLinkHit.attr("d",d=>`M${d._sx||0},${d._sy||0}L${d._tx||0},${d._ty||0}`);
+  extElabels.attr("x",d=>(d.source.x+d.target.x)/2).attr("y",d=>(d.source.y+d.target.y)/2-2);
+
+  // Required curved edges (only in required mode)
+  if(mode==="required"){
+    reqPaths.attr("d",e=>reqCurvePath(e));
+    reqHitPaths.attr("d",e=>reqCurvePath(e));
+    reqLabels.each(function(e){
+      const m=reqMidpoint(e);
+      d3.select(this).attr("x",m.x).attr("y",m.y);
+    });
+  }
+
+  nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`);
+}
+
+function boxReach(n,dx,dy){
+  const ux=Math.abs(dx),uy=Math.abs(dy);
+  const hw=n.w/2,hh=n.h/2;
+  const tx2=ux>0?hw/ux:Infinity;
+  const ty2=uy>0?hh/uy:Infinity;
+  const t=Math.min(tx2,ty2);
+  return Math.hypot(dx,dy)*t/(Math.hypot(dx,dy)||1);
+}
+
+// =====================================================================
+//  ZOOM / FIT
+// =====================================================================
+const zoom=d3.zoom().scaleExtent([0.15,3]).on("zoom",e=>root.attr("transform",e.transform));
+svg.call(zoom).on("click",()=>deselect());
+
+function fitView(dur){
+  const pad=30;
+  const vis=nodes.filter(n=>mode==="required"?coreIds.has(n.id):true);
+  if(!vis.length) return;
+  const minx=Math.min(...vis.map(n=>n.x-n.w/2)), maxx=Math.max(...vis.map(n=>n.x+n.w/2));
+  const miny=Math.min(...vis.map(n=>n.y-n.h/2)), maxy=Math.max(...vis.map(n=>n.y+n.h/2));
+  const gw=Math.max(1,maxx-minx), gh=Math.max(1,maxy-miny);
+  const scale=Math.max(.2,Math.min(1.4,(W-2*pad)/gw,(H-2*pad)/gh));
+  const tx=(W-scale*(minx+maxx))/2, ty=(H-scale*(miny+maxy))/2;
+  svg.transition().duration(dur||600).call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(scale));
+}
+setTimeout(()=>fitView(700),1700);
+
+function dstart(e,d){ if(!e.active) sim.alphaTarget(.25).restart(); d.fx=d.x; d.fy=d.y; }
+function dragged(e,d){ d.fx=e.x; d.fy=e.y; }
+function dend(e,d){
+  if(!e.active) sim.alphaTarget(0);
+  if(mode==="required"&&coreIds.has(d.id)&&coreLayout[d.id]){
+    d.fx=coreLayout[d.id].rx*W; d.fy=coreLayout[d.id].ry*H;
+  } else { d.fx=null; d.fy=null; }
+}
+
+// =====================================================================
+//  ADJACENCY (extended)
+// =====================================================================
+const adj=new Map(nodes.map(n=>[n.id,{out:[],in:[]}]));
+extLinks.forEach(l=>{ adj.get(l.s).out.push(l); adj.get(l.t).in.push(l); });
+
+// =====================================================================
+//  SELECTION STATE
+// =====================================================================
+let selNode=null, selExtEdge=null, selReqEdge=null, hovReqEdge=null;
+
+function extLinkOpacity(d){
+  if(!isExtLinkVisible(d)) return 0;
+  if(selExtEdge) return d===selExtEdge?.95:.06;
+  if(selNode) return (d.s===selNode.id||d.t===selNode.id)?.95:.05;
+  return .45;
+}
+function extLinkWidth(d){
+  if(!isExtLinkVisible(d)) return 0;
+  if(selExtEdge) return d===selExtEdge?3:1.4;
+  if(selNode) return (d.s===selNode.id||d.t===selNode.id)?2.4:1;
+  return 1.4;
+}
+
+function refreshExtLinks(){
+  extLinkSel.attr("opacity",extLinkOpacity).attr("stroke-width",extLinkWidth);
+  extLinkHit.style("pointer-events",d=>isExtLinkVisible(d)?"all":"none");
+  extElabels.attr("opacity",d=>{
+    if(!isExtLinkVisible(d)) return 0;
+    if(selExtEdge) return d===selExtEdge?1:0;
+    if(selNode) return (d.s===selNode.id||d.t===selNode.id)?1:0;
+    return 0;
+  });
+}
+
+function applyReqEdgeStyle(){
+  if(mode!=="required"){ reqPaths.attr("opacity",0); reqHitPaths.style("pointer-events","none"); reqLabels.attr("opacity",0); return; }
+  reqPaths.each(function(e){
+    const sign = scenario==="nofrag"?e.nofrag_sign:e.frag_sign;
+    const col = sign==="+"?INC:DEC;
+    const dash = sign==="+"?null:"5 4";
+    const connected = !selNode || e.s===selNode.id || e.t===selNode.id;
+    d3.select(this)
+      .attr("stroke",col)
+      .attr("stroke-dasharray",dash)
+      .attr("marker-end",sign==="+"?"url(#ar-inc)":"url(#ar-dec)")
+      .attr("opacity", selReqEdge ? (selReqEdge===e ? .95 : .05) : selNode ? (connected ? .85 : .04) : hovReqEdge ? (hovReqEdge===e ? 1 : .22) : .42)
+      .attr("stroke-width", selReqEdge ? (selReqEdge===e ? 3.4 : 1.2) : hovReqEdge===e ? 3.2 : selNode&&connected ? 2.4 : 1.6);
+  });
+  reqHitPaths.style("pointer-events","all");
+  reqLabels.each(function(e){
+    const rel = scenario==="nofrag"?e.nofrag_rel:e.frag_rel;
+    const connected = !selNode || e.s===selNode.id || e.t===selNode.id;
+    d3.select(this).text(rel)
+      .attr("opacity", selReqEdge ? (selReqEdge===e?1:0) : hovReqEdge===e ? 1 : selNode&&connected ? 0.88 : 0);
+  });
+}
+
+function selectNode(d){
+  selNode=d; selExtEdge=null; selReqEdge=null;
+  const nb=new Set([d.id]);
+  if(mode==="extended"){
+    adj.get(d.id).out.forEach(l=>{ if(isExtLinkVisible(l)) nb.add(l.t); });
+    adj.get(d.id).in.forEach(l=>{ if(isExtLinkVisible(l)) nb.add(l.s); });
+  } else {
+    REQ_EDGES.forEach(e=>{ if(e.s===d.id) nb.add(e.t); if(e.t===d.id) nb.add(e.s); });
+  }
+  nodeSel.attr("opacity",n=>(mode==="required"&&!coreIds.has(n.id))?0:nb.has(n.id)?1:.14);
+  refreshExtLinks();
+  applyReqEdgeStyle();
+  showNodeInfo(d);
+}
+
+function selectExtEdge(d){
+  if(!isExtLinkVisible(d)) return;
+  selExtEdge=d; selNode=null; selReqEdge=null;
+  const nb=new Set([d.s,d.t]);
+  nodeSel.attr("opacity",n=>nb.has(n.id)?1:.16);
+  refreshExtLinks();
+  applyReqEdgeStyle();
+  showExtEdgeInfo(d);
+}
+
+function selectReqEdge(e){
+  selReqEdge=e; selNode=null; selExtEdge=null;
+  const nb=new Set([e.s,e.t]);
+  nodeSel.attr("opacity",n=>(mode==="required"&&!coreIds.has(n.id))?0:nb.has(n.id)?1:.14);
+  applyReqEdgeStyle();
+  showReqEdgeInfo(e);
+}
+
+function deselect(){
+  selNode=null; selExtEdge=null; selReqEdge=null; hovReqEdge=null;
+  nodeSel.attr("opacity",n=>(mode==="required"&&!coreIds.has(n.id))?0:1);
+  refreshExtLinks();
+  applyReqEdgeStyle();
+  d3.select("#info").style("display","none");
+}
+
+// =====================================================================
+//  INFO PANEL
+// =====================================================================
+function scLabel(){ return (mode==="required"?reqScenarios:extScenarios)[scenario].label; }
+
+function showNodeInfo(d){
+  const c=cats[d.cat];
+  d3.select("#info").style("display","block");
+  d3.select("#i-tag").text(scLabel()).style("background",c.fill).style("color",c.text);
+  d3.select("#i-title").text(d.label);
+  let desc=d.desc||"";
+  if(mode==="required"&&coreIds.has(d.id)) desc=reqScenarios[scenario].nodeDesc[d.id]||desc;
+  d3.select("#i-desc").text(desc);
+
+  if(mode==="required"){
+    // show all req edges touching this node
+    const out=REQ_EDGES.filter(e=>e.s===d.id);
+    const inn=REQ_EDGES.filter(e=>e.t===d.id);
+    const mkR=(e,dir)=>{
+      const rel=scenario==="nofrag"?e.nofrag_rel:e.frag_rel;
+      const sign=scenario==="nofrag"?e.nofrag_sign:e.frag_sign;
+      const col=sign==="+"?INC:DEC;
+      const other=nById.get(dir==="out"?e.t:e.s);
+      return `<div class="lnk" data-req="${REQ_EDGES.indexOf(e)}">`
+        +(dir==="in"?`<b>${other.label}</b> `:"")
+        +`<span style="color:${col}">${rel}</span>`
+        +(dir==="out"?` <b>${other.label}</b>`:"")
+        +`<span class="pill" style="background:${sign==="+"?"#e4f3ec":"#fbe6e3"};color:${col}">${sign}</span></div>`;
+    };
+    d3.select("#i-out").html(out.length?"<h4>This drives</h4>"+out.map(e=>mkR(e,"out")).join(""):"");
+    d3.select("#i-in").html(inn.length?"<h4>Driven by</h4>"+inn.map(e=>mkR(e,"in")).join(""):"");
+    d3.selectAll("#info .lnk").on("click",function(){
+      const idx=+this.getAttribute("data-req");
+      selectReqEdge(REQ_EDGES[idx]);
+    });
+  } else {
+    const mk=(l,dir)=>{
+      const other=nById.get(dir==="out"?l.t:l.s);
+      const col=l.sign==="+"?INC:DEC;
+      return `<div class="lnk" data-s="${l.s}" data-t="${l.t}">`
+        +(dir==="in"?`<b>${other.label}</b> `:"")
+        +`<span style="color:${col}">${l.rel}</span>`
+        +(dir==="out"?` <b>${other.label}</b>`:"")
+        +`<span class="pill" style="background:${l.sign==="+"?"#e4f3ec":"#fbe6e3"};color:${col}">${l.sign}</span></div>`;
+    };
+    const filt=ls=>ls.filter(l=>isExtLinkVisible(l));
+    const out=filt(adj.get(d.id).out), inn=filt(adj.get(d.id).in);
+    d3.select("#i-out").html(out.length?"<h4>This drives</h4>"+out.map(l=>mk(l,"out")).join(""):"");
+    d3.select("#i-in").html(inn.length?"<h4>Driven by</h4>"+inn.map(l=>mk(l,"in")).join(""):"");
+    d3.selectAll("#info .lnk").on("click",function(){
+      const s=this.getAttribute("data-s"),t=this.getAttribute("data-t");
+      const e=extLinks.find(l=>l.s===s&&l.t===t);
+      if(e) selectExtEdge(e);
+    });
+  }
+}
+
+function showReqEdgeInfo(e){
+  const sn=nById.get(e.s), tn=nById.get(e.t);
+  const rel=scenario==="nofrag"?e.nofrag_rel:e.frag_rel;
+  const sign=scenario==="nofrag"?e.nofrag_sign:e.frag_sign;
+  const col=sign==="+"?INC:DEC;
+  const bg=sign==="+"?"#e4f3ec":"#fbe6e3";
+  d3.select("#info").style("display","block");
+  d3.select("#i-tag").text(scLabel()).style("background","#efece3").style("color","#3d3c37");
+  d3.select("#i-title").html(
+    `<span style="border:none;padding:0">${sn.label}</span>`
+    +` <span style="color:${col};font-weight:700">${rel}</span> `
+    +`<span style="border:none;padding:0">${tn.label}</span>`
+    +` <span class="pill" style="background:${bg};color:${col}">${sign}</span>`
+  );
+  const desc=scenario==="nofrag"?e.nofrag_desc:e.frag_desc;
+  d3.select("#i-desc").text(desc);
+  d3.select("#i-out").html("");
+  d3.select("#i-in").html(
+    `<h4>Source</h4>`
+    +`<div class="lnk" data-nid="${e.s}" style="border:none">Open <b>${sn.label}</b></div>`
+    +`<div class="lnk" data-nid="${e.t}" style="border:none">Open <b>${tn.label}</b></div>`
+  );
+  d3.selectAll("#info .lnk").on("click",function(){
+    const id=this.getAttribute("data-nid");
+    if(id){ const n=nById.get(id); if(n) selectNode(n); }
+  });
+}
+
+function showExtEdgeInfo(l){
+  const sn=nById.get(l.s), tn=nById.get(l.t);
+  const col=l.sign==="+"?INC:DEC;
+  const bg=l.sign==="+"?"#e4f3ec":"#fbe6e3";
+  d3.select("#info").style("display","block");
+  d3.select("#i-tag").text(scLabel()).style("background","#efece3").style("color","#3d3c37");
+  d3.select("#i-title").html(
+    `<span>${sn.label}</span>`
+    +` <span style="color:${col};font-weight:700">${l.rel}</span> `
+    +`<span>${tn.label}</span>`
+    +` <span class="pill" style="background:${bg};color:${col}">${l.sign}</span>`
+  );
+  d3.select("#i-desc").text(l.desc||"");
+  d3.select("#i-out").html("");
+  d3.select("#i-in").html(
+    `<h4>Source</h4>`
+    +`<div class="lnk" data-nid="${l.s}" style="border:none">Open <b>${sn.label}</b></div>`
+    +`<div class="lnk" data-nid="${l.t}" style="border:none">Open <b>${tn.label}</b></div>`
+  );
+  d3.selectAll("#info .lnk").on("click",function(){
+    const id=this.getAttribute("data-nid");
+    if(id){ const n=nById.get(id); if(n) selectNode(n); }
+  });
+}
+
+d3.select("#infoclose").on("click",deselect);
+
+// =====================================================================
+//  LEGEND (extended)
+// =====================================================================
+const hidden=new Set();
+const lg=d3.select("#lg-items");
+Object.entries(cats).forEach(([k,c])=>{
+  const row=lg.append("div").attr("class","lg").attr("data-cat",k);
+  row.append("span").attr("class","sw").style("background",c.fill).style("border-color",c.stroke);
+  row.append("span").text(c.name);
+  row.on("click",()=>{ hidden.has(k)?hidden.delete(k):hidden.add(k); row.classed("off",hidden.has(k)); refreshExtLinks(); updateStat(); });
+});
+
+function updateStat(){
+  if(mode==="required"){
+    const lv=REQ_EDGES.length;
+    const scn=scenario==="nofrag"?"without fragmentation":"with fragmentation";
+    d3.select("#stat").text(`5 concepts fully connected, ${lv} arrows (${scn})`);
+  } else {
+    const nv=nodes.length;
+    const lv=extLinks.filter(isExtLinkVisible).length;
+    const scn=scenario==="nofrag"?"without fragmentation":"with fragmentation";
+    d3.select("#stat").text(`${nv} concepts, ${lv} connections (${scn})`);
+  }
+}
+
+function updateSubtxt(){
+  if(mode==="required"){
+    const sc=reqScenarios[scenario];
+    nodeSel.select("text.subtxt").text(d=>coreIds.has(d.id)?(sc.sub[d.id]||""):"");
+  } else {
+    nodeSel.select("text.subtxt").text("");
+  }
+}
+
+// =====================================================================
+//  FIXED LAYOUT FOR REQUIRED MODE
+// =====================================================================
+const coreLayout={
+  biodiv:   {rx:0.50,ry:0.10},
+  poorres:  {rx:0.10,ry:0.48},
+  mouse:    {rx:0.90,ry:0.48},
+  infnymph: {rx:0.26,ry:0.88},
+  exposure: {rx:0.74,ry:0.88}
+};
+
+function pinCoreNodes(){
+  nodes.forEach(n=>{
+    if(coreIds.has(n.id)&&coreLayout[n.id]){
+      n.fx=coreLayout[n.id].rx*W; n.fy=coreLayout[n.id].ry*H;
+      n.x=n.fx; n.y=n.fy;
+    } else { n.fx=null; n.fy=null; }
+  });
+  sim.alpha(0.01).restart();
+}
+
+function releaseCoreNodes(){
+  nodes.forEach(n=>{ n.fx=null; n.fy=null; });
+}
+
+// =====================================================================
+//  APPLY ALL
+// =====================================================================
+function applyAll(){
+  if(mode==="required"){
+    d3.select("#hdr-desc").text("Every concept connects to every other concept — 30 arrows total, 3 per pair, each a distinct mechanism. Both scenarios shown. Click any arrow to read the reasoning.");
+    pinCoreNodes();
+    // hide extended layer
+    extLinkSel.style("display","none");
+    extLinkHit.style("pointer-events","none");
+    extElabels.style("display","none");
+    reqPaths.style("display",null);
+    reqHitPaths.style("display",null);
+    reqLabels.style("display",null);
+  } else {
+    d3.select("#hdr-desc").text(extScenarios[scenario].headerDesc);
+    releaseCoreNodes();
+    sim.alpha(0.3).restart();
+    extLinkSel.style("display",l=>isExtLinkVisible(l)?null:"none");
+    extLinkHit.style("pointer-events",l=>isExtLinkVisible(l)?"all":"none");
+    extElabels.style("display",l=>isExtLinkVisible(l)?null:"none");
+    reqPaths.style("display","none");
+    reqHitPaths.style("display","none");
+    reqLabels.style("display","none");
+  }
+  d3.select("#legend").style("display",mode==="extended"?"block":"none");
+  nodeSel.style("display",n=>(mode==="required"&&!coreIds.has(n.id))?"none":null);
+  nodeSel.attr("opacity",n=>(mode==="required"&&!coreIds.has(n.id))?0:1);
+  updateSubtxt();
+  applyReqEdgeStyle();
+  refreshExtLinks();
+  updateStat();
+  deselect();
+  setTimeout(()=>fitView(500),80);
+}
+
+// Mode buttons
+d3.select("#btn-required").on("click",()=>{ mode="required"; d3.select("#btn-required").classed("on",true); d3.select("#btn-extended").classed("on",false); applyAll(); });
+d3.select("#btn-extended").on("click",()=>{ mode="extended"; d3.select("#btn-required").classed("on",false); d3.select("#btn-extended").classed("on",true); applyAll(); });
+
+// Scenario buttons
+d3.select("#btn-nofrag").on("click",()=>{ scenario="nofrag"; d3.select("#btn-nofrag").classed("on",true); d3.select("#btn-frag").classed("on",false); applyAll(); });
+d3.select("#btn-frag").on("click",()=>{ scenario="frag"; d3.select("#btn-nofrag").classed("on",false); d3.select("#btn-frag").classed("on",true); applyAll(); });
+
+// Search
+d3.select("#q").on("input",function(){
+  const v=this.value.trim().toLowerCase();
+  if(!v){ nodeSel.attr("opacity",n=>(mode==="required"&&!coreIds.has(n.id))?0:1); refreshExtLinks(); return; }
+  nodeSel.attr("opacity",n=>{
+    if(mode==="required"&&!coreIds.has(n.id)) return 0;
+    return n.label.toLowerCase().includes(v)?1:.12;
+  });
+  extLinkSel.attr("opacity",.04); extElabels.attr("opacity",0);
+});
+
+d3.select("#reset").on("click",()=>{
+  d3.select("#q").property("value","");
+  hidden.clear();
+  d3.selectAll(".lg").classed("off",false);
+  applyAll();
+  fitView(600);
+});
+
+window.addEventListener("resize",()=>{
+  W=window.innerWidth; H=window.innerHeight; svg.attr("viewBox",[0,0,W,H]);
+  if(mode==="required"){ pinCoreNodes(); setTimeout(()=>fitView(300),50); }
+  else { sim.force("x",d3.forceX(W/2).strength(.045)).force("y",d3.forceY(H/2).strength(.05)).alpha(.3).restart(); }
+});
+
+// =====================================================================
+//  INIT
+// =====================================================================
+document.getElementById("overlay-close").addEventListener("click",()=>{
+  document.getElementById("overlay").style.display="none";
+});
+applyAll();
+</script>
+</body>
+</html>
